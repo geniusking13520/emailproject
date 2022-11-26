@@ -1,3 +1,6 @@
+from http.client import HTTPResponse
+import random
+from django.core.mail import send_mail
 from django.shortcuts import render, redirect
 from django.urls import reverse_lazy
 from django.contrib.auth.views import LoginView, PasswordResetView, PasswordChangeView
@@ -5,13 +8,17 @@ from django.contrib import messages
 from django.contrib.messages.views import SuccessMessageMixin
 from django.views import View
 from django.contrib.auth.decorators import login_required
-
-from .forms import RegisterForm, LoginForm, UpdateUserForm, UpdateProfileForm
-
+from cryptography.fernet import Fernet
+from .forms import  OtpForm, RegisterForm, LoginForm, UpdateUserForm, UpdateProfileForm
+from django.contrib.auth.models import User
 
 def home(request):
     return render(request, 'users/home.html')
 
+
+ownKey = Fernet.generate_key()
+global fernet
+fernet = Fernet(ownKey)
 
 class RegisterView(View):
     form_class = RegisterForm
@@ -31,17 +38,76 @@ class RegisterView(View):
         return render(request, self.template_name, {'form': form})
 
     def post(self, request, *args, **kwargs):
-        form = self.form_class(request.POST)
+        global fernet
+        form = self.form_class(request.POST, request.FILES)
+        requestcode  = request.POST.get('requestcode', '')
+        if requestcode == "":
+            if form.is_valid():
+                form.save()
+                #self.user_info.save()
+                username = form.cleaned_data.get('username')
+                email = form.cleaned_data.get('email')
+                code = random.randrange(1000, 9999)
+                print (code)
+                enccode = fernet.encrypt(str(code).encode()).decode()
+                security_code = ""
+                try:
+                    send_mail('your OTP for verification', 'Your OTP is {}'.format(code), 'hello@theposturelab.sg', [email])
+                except Exception :
+                    security_code = code
 
-        if form.is_valid():
-            form.save()
-
-            username = form.cleaned_data.get('username')
-            messages.success(request, f'Account created for {username}')
-
-            return redirect(to='login')
-
+                return render(request, "users/otp.html", {'username': username, 'email' : email , 'requestcode' : enccode, 'scode' : code})
+        else:
+            
+            username = request.POST.get('username', '')
+            email = request.POST.get('email', '')
+            enccode = request.POST.get('code', '')
+            deccode = fernet.decrypt(enccode.encode()).decode()
+            if int(requestcode) == int(deccode):
+                messages.success(request, 'Account created for ' + username)
+                return redirect(to='login')
+            else:
+                user = User.objects.filter(username=username)
+                user.delete()
+                messages.error(request, 'Request code error')
+                # return render(request, "users/otp.html", {'username': username, 'email' : email , 'requestcode' : enccode})
+                return redirect(to='login')
         return render(request, self.template_name, {'form': form})
+
+class OtpView(View):
+    global fernet
+    form_class = OtpForm
+    initial = {'key': 'value'}
+    template_name = 'users/otp.html'
+
+    def get(self, request, *args, **kwargs):
+        print("--------------OtpView get------------")
+        form = self.form_class(initial=self.initial)
+        return render(request, self.template_name, {'form': form})
+
+    def post(self, request, *args, **kwargs):
+        print("--------------OtpView post Request Code------------")
+
+        requestcode  = request.POST.get('requestcode', '')
+        username = request.POST.get('username', '')
+        email = request.POST.get('email', '')
+        enccode = request.POST.get('code', '')
+        decCode = fernet.decrypt(enccode).decode()
+        print("--------------OtpView post Request Code------------" + str(decCode) + "," + str(username))
+        if int(requestcode) == int(decCode):
+            messages.success(request, 'Account created for {username}')
+            return redirect(to='otp')
+        else:
+            #u = User.objects.filter(Name=u1)
+            messages.error(request, 'Request code error')
+            return redirect(to='otp')
+
+    def dispatch(self, request, *args, **kwargs):
+        print("--------------OtpView dispatch------------")
+        if request.user.is_authenticated:
+            return redirect(to='/')
+
+        return super(OtpView, self).dispatch(request, *args, **kwargs)
 
 
 # Class based view that extends from the built in login view to add a remember me functionality
@@ -79,8 +145,10 @@ class ChangePasswordView(SuccessMessageMixin, PasswordChangeView):
     success_url = reverse_lazy('users-home')
 
 
+
 @login_required
 def profile(request):
+    print ("views.py -> profile");
     if request.method == 'POST':
         user_form = UpdateUserForm(request.POST, instance=request.user)
         profile_form = UpdateProfileForm(request.POST, request.FILES, instance=request.user.profile)

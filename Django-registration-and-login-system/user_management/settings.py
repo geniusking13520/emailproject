@@ -173,13 +173,14 @@ SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = str(os.getenv('GOOGLE_SECRET'))
 # DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.mailtrap.io'
 EMAIL_USE_TLS = True
 EMAIL_PORT = 587
-EMAIL_HOST_USER = "ad42fc2dc0a46f"
-EMAIL_HOST_PASSWORD = "d73319d39f0730"
-# EMAIL_HOST_USER_GMAIL = "donaldwerner0326@gmail.com"
-# EMAIL_HOST_PASSWORD_GMAIL = "werner1234!@#4"
+
+# EMAIL_HOST = 'smtp.mailtrap.io'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_HOST_USER = "hello@theposturelab.sg"
+EMAIL_HOST_PASSWORD = "xiqmttztbwqcozen"
+
 
 SESSION_COOKIE_AGE = 60 * 60 * 24 * 30
 
